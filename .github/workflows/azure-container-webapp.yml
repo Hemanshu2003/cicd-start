@@ -1,0 +1,60 @@
+name: Build and deploy a container to an Azure Web App (No Publish Profile)
+
+env:
+  AZURE_WEBAPP_NAME: azure-github-workflow
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase repo name
+        run: echo "REPO=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ghcr.io/${{ env.REPO }}:${{ github.sha }}
+          file: ./Dockerfile
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Lowercase repo name
+        run: echo "REPO=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Configure Azure Web App to use the new image
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az webapp config container set \
+              --name ${{ env.AZURE_WEBAPP_NAME }} \
+              --resource-group "1-79da05c4-playground-sandbox" \
+              --docker-custom-image-name ghcr.io/${{ env.REPO }}:${{ github.sha }} \
+              --docker-registry-server-url https://ghcr.io \
+              --docker-registry-server-user ${{ github.actor }} \
+              --docker-registry-server-password ${{ secrets.GITHUB_TOKEN }}
