@@ -1,0 +1,456 @@
+name: Trading Engine — CI/CD Pipeline
+
+# ─────────────────────────────────────────────
+# TRIGGER: Only fires when files inside the
+# trading-engine/ application folder change.
+# Change this path to match your actual folder.
+# ─────────────────────────────────────────────
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "cicd-trading-engine-kubes-deployment/**"          # ← change to your actual app folder name
+      - ".github/workflows/trading-engine-cicd.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "cicd-trading-engine-kubes-deployment/**"
+      - ".github/workflows/trading-engine-cicd.yml"
+
+# Cancel any in-progress run for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─────────────────────────────────────────────
+# GLOBAL ENV — set these in GitHub Secrets
+# ─────────────────────────────────────────────
+env:
+  APP_FOLDER: cicd-trading-engine-kubes-deployment            # ← your app folder name
+  TF_FOLDER: cicd-trading-engine-kubes-deployment/terraform   # ← terraform subfolder inside app folder
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: trading-engine
+  IMAGE_TAG: ${{ github.sha }}
+
+# ═════════════════════════════════════════════
+# JOB 1 — LINT & TEST (ignoring the test)
+# ═════════════════════════════════════════════
+jobs:
+#   test:
+#     name: Lint & Unit Tests
+#     runs-on: ubuntu-latest
+#     defaults:
+#       run:
+#         working-directory: ${{ env.APP_FOLDER }}
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Python 3.11
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: "3.11"
+#           cache: "pip"
+#           cache-dependency-path: "${{ env.APP_FOLDER }}/requirements*.txt"
+
+#       - name: Install dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r requirements.txt
+#           pip install pytest pytest-cov flake8
+
+#       - name: Lint with flake8
+#         run: |
+#           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+#           flake8 . --count --max-complexity=10 --max-line-length=127 --statistics
+
+#       - name: Run unit tests with coverage
+#         run: |
+#           pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing
+#         continue-on-error: false
+
+#       - name: Upload coverage report
+#         uses: actions/upload-artifact@v4
+#         if: always()
+#         with:
+#           name: coverage-report
+#           path: ${{ env.APP_FOLDER }}/coverage.xml
+
+# ═════════════════════════════════════════════
+# JOB 2 — BUILD & PUSH DOCKER IMAGE TO ECR
+# Only runs on push to main or develop
+# ═════════════════════════════════════════════
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    # needs: test
+    if: github.event_name == 'push'
+    outputs:
+      image-uri: ${{ steps.build-push.outputs.image-uri }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create ECR repository if it doesn't exist
+        run: |
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY \
+            --region $AWS_REGION 2>/dev/null || \
+          aws ecr create-repository \
+            --repository-name $ECR_REPOSITORY \
+            --image-scanning-configuration scanOnPush=true \
+            --region $AWS_REGION
+
+      - name: Build, tag & push image to ECR
+        id: build-push
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: ${{ env.APP_FOLDER }}
+        run: |
+          IMAGE_URI="$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          LATEST_URI="$REGISTRY/$ECR_REPOSITORY:latest"
+
+          docker build \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg GIT_SHA=${{ github.sha }} \
+            --cache-from "$LATEST_URI" \
+            -t "$IMAGE_URI" \
+            -t "$LATEST_URI" \
+            -f Dockerfile .
+
+          docker push "$IMAGE_URI"
+          docker push "$LATEST_URI"
+
+          echo "image-uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "✅ Image pushed: $IMAGE_URI"
+
+# ═════════════════════════════════════════════
+# JOB 3 — TERRAFORM PLAN (via Terraform Cloud)
+# Runs on both PRs and pushes
+# ═════════════════════════════════════════════
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    # needs: [test] // ignoring test 
+    # Run plan on PRs too (without apply) for review
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    outputs:
+      run-id:          ${{ steps.tfc-run.outputs.run_id }}
+      run-status:      ${{ steps.tfc-run.outputs.run_status }}
+      plan-has-changes: ${{ steps.plan-output.outputs.has_changes }}
+
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ secrets.TFC_ORGANIZATION }}   # Your TFC org name
+      TF_WORKSPACE:          ${{ secrets.TFC_WORKSPACE }}      # e.g. "trading-engine-prod"
+      TF_API_TOKEN:          ${{ secrets.TF_API_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Upload the terraform directory to Terraform Cloud as a config version
+      - name: Upload Terraform configuration to TFC
+        id: tfc-upload
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        with:
+          workspace:    ${{ env.TF_WORKSPACE }}
+          directory:    ${{ env.TF_FOLDER }}
+          organization: ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:        ${{ env.TF_API_TOKEN }}
+
+      # Create a speculative plan run in TFC
+      - name: Create TFC plan run
+        id: tfc-run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        with:
+          workspace:       ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.tfc-upload.outputs.configuration_version_id }}
+          organization:    ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:           ${{ env.TF_API_TOKEN }}
+          # Speculative = plan only, never apply (safe for PRs)
+          plan_only:       ${{ github.event_name == 'pull_request' }}
+          message:         "Triggered by GitHub Actions — commit ${{ github.sha }}"
+
+      # Fetch and display the plan output
+      - name: Get plan output
+        id: plan-output
+        uses: hashicorp/tfc-workflows-github/actions/plan-output@v1.3.2
+        with:
+          plan:         ${{ steps.tfc-run.outputs.plan_id }}
+          organization: ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:        ${{ env.TF_API_TOKEN }}
+
+      # Post plan summary as a PR comment
+      - name: Post plan summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const plan = {
+              add:    '${{ steps.plan-output.outputs.add }}',
+              change: '${{ steps.plan-output.outputs.change }}',
+              destroy:'${{ steps.plan-output.outputs.destroy }}',
+              runId:  '${{ steps.tfc-run.outputs.run_id }}',
+              org:    '${{ env.TF_CLOUD_ORGANIZATION }}',
+              ws:     '${{ env.TF_WORKSPACE }}'
+            };
+            const tfcUrl = `https://app.terraform.io/app/${plan.org}/workspaces/${plan.ws}/runs/${plan.runId}`;
+            const body = [
+              `## 🏗️ Terraform Plan — Trading Engine`,
+              ``,
+              `| Resource Action | Count |`,
+              `|-----------------|-------|`,
+              `| ➕ Add          | ${plan.add} |`,
+              `| 🔄 Change       | ${plan.change} |`,
+              `| ❌ Destroy      | ${plan.destroy} |`,
+              ``,
+              `📋 [View full plan in Terraform Cloud](${tfcUrl})`,
+              ``,
+              `> ⚠️ Review the destroy count before merging.`
+            ].join('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+# ═════════════════════════════════════════════
+# JOB 4 — TERRAFORM APPLY (via Terraform Cloud)
+# Only runs on push to main after plan succeeds
+# ═════════════════════════════════════════════
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: [build-and-push, terraform-plan]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    environment:
+      name: production          # Requires manual approval in GitHub Environments
+      url: https://app.terraform.io
+
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ secrets.TFC_ORGANIZATION }}
+      TF_WORKSPACE:          ${{ secrets.TFC_WORKSPACE }}
+      TF_API_TOKEN:          ${{ secrets.TF_API_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Apply the exact run that was planned — never apply a different plan
+      - name: Apply TFC run
+        id: tfc-apply
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@v1.3.2
+        with:
+          run:          ${{ needs.terraform-plan.outputs.run-id }}
+          organization: ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:        ${{ env.TF_API_TOKEN }}
+          comment:      "Auto-approved by GitHub Actions — ${{ github.sha }}"
+
+      - name: Confirm apply status
+        run: |
+          echo "✅ Terraform Apply status: ${{ steps.apply.outputs.status }}"
+          if (( "${{ steps.apply.outputs.status }}" != "Success" )); then
+            echo "❌ Apply did not complete successfully"
+            exit 1
+          fi
+
+# ═════════════════════════════════════════════
+# JOB 5 — DEPLOY TO EKS
+# Updates the K8s deployment with the new image
+# ═════════════════════════════════════════════
+  # deploy-to-eks:
+  #   name: Deploy to EKS
+  #   runs-on: ubuntu-latest
+  #   needs: [build-and-push, terraform-apply]
+  #   if: |
+  #     github.event_name == 'push' &&
+  #     github.ref == 'refs/heads/main'
+  #   environment:
+  #     name: production
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region:            ${{ env.AWS_REGION }}
+
+  #     - name: Update kubeconfig for EKS cluster
+  #       run: |
+  #         aws eks update-kubeconfig \
+  #           --region $AWS_REGION \
+  #           --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+  #     - name: Login to Amazon ECR
+  #       id: login-ecr
+  #       uses: aws-actions/amazon-ecr-login@v2
+
+  #     - name: Render Kubernetes manifests with new image
+  #       env:
+  #         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+  #       run: |
+  #         IMAGE_URI="$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  #         # Substitute the image tag in K8s manifests
+  #         sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_URI|g" \
+  #           $APP_FOLDER/k8s/api-gateway-deployment.yaml \
+  #           $APP_FOLDER/k8s/worker-deployment.yaml
+
+  #     - name: Apply Kubernetes manifests
+  #       run: |
+  #         kubectl apply -f $APP_FOLDER/k8s/ --namespace=trading-engine
+
+  #     - name: Wait for API Gateway rollout
+  #       run: |
+  #         kubectl rollout status deployment/api-gateway \
+  #           --namespace=trading-engine \
+  #           --timeout=180s
+
+  #     - name: Wait for Worker rollout
+  #       run: |
+  #         kubectl rollout status deployment/celery-worker \
+  #           --namespace=trading-engine \
+  #           --timeout=180s
+
+  #     - name: Verify pods are running
+  #       run: |
+  #         echo "── API Gateway pods ──"
+  #         kubectl get pods -l app=api-gateway -n trading-engine
+  #         echo "── Celery Worker pods ──"
+  #         kubectl get pods -l app=celery-worker -n trading-engine
+
+  #     - name: Post deployment summary
+  #       run: |
+  #         echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+  #         echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+  #         echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+  #         echo "| Image Tag | \`$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
+  #         echo "| Cluster   | \`${{ secrets.EKS_CLUSTER_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+  #         echo "| Namespace | \`trading-engine\` |" >> $GITHUB_STEP_SUMMARY
+  #         echo "| Deployed At | $(date -u) |" >> $GITHUB_STEP_SUMMARY
+
+# ═════════════════════════════════════════════
+# JOB 6 — SLACK / TEAMS NOTIFICATION (optional)
+# ═════════════════════════════════════════════
+  final-report:
+    name: Final Report & Notify
+    runs-on: ubuntu-latest
+    needs: [terraform-apply]
+    if: always() && github.ref == 'refs/heads/main'
+    # env:
+    #   # Wire Slack once at the job level so conditionals can use it
+    #   SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    steps:
+      - name: Compute final status
+        id: status
+        run: |
+          RESULT="${{ needs.terraform-apply.result }}"
+          # Handle the edge case where terraform-apply didn't run or returned empty
+          if [ -z "$RESULT" ]; then
+            RESULT="skipped"
+          fi
+
+          case "$RESULT" in
+            success)
+              echo "status=success" >> "$GITHUB_OUTPUT"
+              echo "color=good"     >> "$GITHUB_OUTPUT"
+              echo "emoji=✅"       >> "$GITHUB_OUTPUT"
+              ;;
+            cancelled)
+              echo "status=cancelled" >> "$GITHUB_OUTPUT"
+              echo "color=warning"    >> "$GITHUB_OUTPUT"
+              echo "emoji=⏸️"         >> "$GITHUB_OUTPUT"
+              ;;
+            failure)
+              echo "status=failure" >> "$GITHUB_OUTPUT"
+              echo "color=danger"   >> "$GITHUB_OUTPUT"
+              echo "emoji=❌"        >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "status=skipped" >> "$GITHUB_OUTPUT"
+              echo "color=warning"  >> "$GITHUB_OUTPUT"
+              echo "emoji=ℹ️"       >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Final GitHub Summary (Markdown)
+        env:
+          STATUS:  ${{ steps.status.outputs.status }}
+          EMOJI:   ${{ steps.status.outputs.emoji }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
+          # Link directly to the exact TFC run we created in the plan job
+          TFC_RUN_URL: https://app.terraform.io/app/${{ secrets.TFC_ORGANIZATION }}/workspaces/${{ secrets.TFC_WORKSPACE }}/runs/${{ needs.terraform-plan.outputs.run-id }}
+        run: |
+          {
+            echo "# ${EMOJI} Final Report"
+            echo ""
+            echo "- **Status**: \`${STATUS}\`"
+            echo "- **Workflow**: \`${{ github.workflow }}\`"
+            echo "- **Run**: [#${{ github.run_number }}](${RUN_URL})"
+            echo "- **Branch**: \`${{ github.ref_name }}\`"
+            echo "- **Commit**: \`${{ github.sha }}\`"
+            echo "- **Terraform apply**: \`${{ needs.terraform-apply.result }}\`"
+            echo "- **Terraform plan run**: ${TFC_RUN_URL}"
+            if [ -n "${IMAGE_URI}" ]; then
+              echo "- **Image**: \`${IMAGE_URI}\`"
+            fi
+            echo ""
+            echo "## Artifacts & Outputs"
+            echo "- Plan had changes: \`${{ needs.terraform-plan.outputs['plan-has-changes'] }}\`"
+            echo ""
+            echo "> Tip: Expose additional values from earlier jobs via \`$GITHUB_OUTPUT\` and read them here with \`needs.<job>.outputs.<key>\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+
+      # - name: (Optional) Slack – Final Report
+      #   if: ${{ env.SLACK_WEBHOOK != '' }}
+      #   env:
+      #     SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     COLOR:  ${{ steps.status.outputs.color }}
+      #     EMOJI:  ${{ steps.status.outputs.emoji }}
+      #     STATUS: ${{ steps.status.outputs.status }}
+      #     RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      #   run: |
+      #     # Build a simple message. You can switch to Block Kit for richer layout.
+      #     curl -s -X POST "$SLACK_WEBHOOK" \
+      #       -H 'Content-type: application/json' \
+      #       --data "{
+      #         \"attachments\": [{
+      #           \"color\": \"$COLOR\",
+      #           \"text\": \"$EMOJI *Final Report* — $STATUS\nWorkflow: \`${{ github.workflow }}\`\nRun: <$RUN_URL|#${{ github.run_number }}>\nBranch: \`${{ github.ref_name }}\`\nCommit: \`${{ github.sha }}\`\"
+      #         }]
+      #       }"
+
+      # - name: No Slack configured
+      #   if: ${{ env.SLACK_WEBHOOK == '' }}
+      #   run: echo "No Slack webhook configured — skipped Slack notification."

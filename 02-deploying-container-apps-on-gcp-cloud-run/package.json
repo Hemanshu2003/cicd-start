@@ -1,0 +1,16 @@
+{
+  "name": "node-cloudrun-sample",
+  "version": "1.0.0",
+  "description": "This guide explains how to set up **Continuous Integration (CI)** and **Continuous Deployment (CD)** for your project using **GitHub Actions**, and deploy it to **Google Cloud Run**.",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

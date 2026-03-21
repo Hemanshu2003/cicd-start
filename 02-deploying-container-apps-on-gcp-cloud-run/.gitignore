@@ -1,0 +1,131 @@
+# -----------------------------
+# OS / Editor
+# -----------------------------
+.DS_Store
+Thumbs.db
+
+# Vim / Emacs swap
+*.swp
+*.swo
+*~
+\#*\#
+
+# IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# -----------------------------
+# Logs & Diagnostics
+# -----------------------------
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.*.json
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# -----------------------------
+# Runtime & Coverage
+# -----------------------------
+lib-cov
+coverage
+.nyc_output
+
+# -----------------------------
+# Dependencies
+# -----------------------------
+node_modules/
+bower_components/
+
+# -----------------------------
+# Environment files
+# (Commit only templates like .env.example)
+# -----------------------------
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+
+# -----------------------------
+# Build output / Caches
+# -----------------------------
+dist/
+build/
+out/
+tmp/
+temp/
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.turbo/
+.npm/
+.vite/
+.vite-cache/
+
+# -----------------------------
+# Framework-specific
+# -----------------------------
+# Next.js / Vercel
+.next/
+.vercel/
+# Nuxt
+.nuxt/
+# SvelteKit
+.svelte-kit/
+# Angular
+.angular/
+# Storybook
+.storybook/
+storybook-static/
+# Remix
+.remix/
+# Expo
+.expo/
+.expo-shared/
+
+# -----------------------------
+# Testing / E2E
+# -----------------------------
+.jest/
+.jest-cache/
+jest-html-reporters-*
+test-results/
+playwright-report/
+playwright/.cache/
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+
+# -----------------------------
+# TypeScript
+# -----------------------------
+*.tsbuildinfo
+
+# -----------------------------
+# Misc binaries / Profiles
+# -----------------------------
+*.node
+*.prof
+*.cpuprofile
+*.heapprofile
+*.heapsnapshot
+
+# -----------------------------
+# Certificates / Secrets (local)
+# -----------------------------
+*.pem
+*.key
+*.crt
+.cert/
+.secrets/

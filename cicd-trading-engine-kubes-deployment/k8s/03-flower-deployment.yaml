@@ -1,0 +1,60 @@
+# k8s/03-flower-deployment.yaml
+# ─────────────────────────────────────────────────────────────────
+# Flower — Celery Task Monitor (lightweight web UI)
+# Access via: kubectl port-forward svc/flower-service 5555:5555 -n trading-engine
+# ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  namespace: trading-engine
+  labels:
+    app: flower
+    component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flower
+  template:
+    metadata:
+      labels:
+        app: flower
+        component: monitoring
+    spec:
+      containers:
+        - name: flower
+          image: mher/flower:2.0     # Standalone image — no custom build needed
+          ports:
+            - containerPort: 5555
+          env:
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: REDIS_URL
+            - name: FLOWER_PORT
+              value: "5555"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flower-service
+  namespace: trading-engine
+  labels:
+    app: flower
+spec:
+  type: ClusterIP      # Internal only — use port-forward to access
+  selector:
+    app: flower
+  ports:
+    - port: 5555
+      targetPort: 5555

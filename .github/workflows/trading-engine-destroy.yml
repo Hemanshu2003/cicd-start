@@ -1,0 +1,100 @@
+name: Trading Engine — Terraform Destroy (Sandbox Cleanup)
+
+# ─────────────────────────────────────────────
+# PURPOSE: Tear down all AWS infrastructure to
+# avoid Pluralsight sandbox credit burn.
+# Run this manually when done for the day.
+# ─────────────────────────────────────────────
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Type DESTROY to confirm teardown of all infrastructure"
+        required: true
+        type: string
+      reason:
+        description: "Reason for destroying (e.g. end of session)"
+        required: false
+        default: "Sandbox session ended"
+
+env:
+  APP_FOLDER: cicd-trading-engine-kubes-deployment
+  TF_FOLDER:  cicd-trading-engine-kubes-deployment/terraform
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+
+jobs:
+  validate-input:
+    name: Validate Destroy Confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation string
+        run: |
+          if [[ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]]; then
+            echo "❌ You must type DESTROY exactly to confirm teardown."
+            exit 1
+          fi
+          echo "✅ Confirmation accepted. Proceeding with destroy."
+
+  terraform-destroy:
+    name: Terraform Destroy via TFC
+    runs-on: ubuntu-latest
+    needs: validate-input
+    environment:
+      name: production          # Still requires manual approval gate
+
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ secrets.TFC_ORGANIZATION }}
+      TF_WORKSPACE:          ${{ secrets.TFC_WORKSPACE }}
+      TF_API_TOKEN:          ${{ secrets.TF_API_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Upload configuration to TFC
+        id: tfc-upload
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        with:
+          workspace:    ${{ env.TF_WORKSPACE }}
+          directory:    ${{ env.TF_FOLDER }}
+          organization: ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:        ${{ env.TF_API_TOKEN }}
+
+      # Create a destroy run — this queues a terraform destroy in TFC
+      - name: Create TFC destroy run
+        id: tfc-run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        with:
+          workspace:             ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.tfc-upload.outputs.configuration_version_id }}
+          organization:          ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:                 ${{ env.TF_API_TOKEN }}
+          is_destroy:            true
+          message:               "Manual destroy — ${{ github.event.inputs.reason }}"
+
+      - name: Get destroy plan output
+        id: plan-output
+        uses: hashicorp/tfc-workflows-github/actions/plan-output@v1.3.2
+        with:
+          plan:         ${{ steps.tfc-run.outputs.plan_id }}
+          organization: ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:        ${{ env.TF_API_TOKEN }}
+
+      - name: Apply destroy run
+        id: tfc-apply
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@v1.3.2
+        with:
+          run:          ${{ steps.tfc-run.outputs.run_id }}
+          organization: ${{ env.TF_CLOUD_ORGANIZATION }}
+          token:        ${{ env.TF_API_TOKEN }}
+          comment:      "Destroy approved by ${{ github.actor }}"
+
+      - name: Confirm destroy status
+        run: |
+          echo "## 🗑️ Destroy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status      | ${{ steps.tfc-apply.outputs.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Destroyed   | ${{ steps.plan-output.outputs.destroy }} resources |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Reason      | ${{ github.event.inputs.reason }} |" >> $GITHUB_STEP_SUMMARY

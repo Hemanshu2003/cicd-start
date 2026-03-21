@@ -1,0 +1,161 @@
+
+
+name: Deploying Container Apps on GCP Cloud Run
+
+on:
+  workflow_dispatch:
+  
+  push:
+    branches:
+      - main
+    paths:
+      - "02-deploying-container-apps-on-gcp-cloud-run/**"
+      - ".github/workflows/deploying-container-apps-cicd.yml"
+  
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "02-deploying-container-apps-on-gcp-cloud-run/**"
+      - ".github/workflows/deploying-container-apps-cicd.yml"
+
+
+# Make sure only the newest push per branch deploys
+concurrency:
+  group: cloudrun-${{ github.ref }}
+  cancel-in-progress: true
+
+
+permissions:
+  contents: read
+  id-token: write   # REQUIRED for OIDC auth
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1           # e.g., asia-south1
+  REPOSITORY: ${{ secrets.GAR_REPOSITORY }}       # e.g., apps
+  SERVICE: ${{ secrets.SERVICE_NAME }}            # e.g., hello-app
+  # Base image path in Artifact Registry (no tag)
+  IMAGE_REPO: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GAR_REPOSITORY }}/${{ secrets.SERVICE_NAME }}
+
+
+jobs:
+  build_and_push:
+    name: Build & Push Image to Artifact Registry 
+    runs-on: ubuntu-latest
+      
+    outputs:
+          image_uri: ${{ steps.meta.outputs.image_uri }}
+          tag: ${{ steps.meta.outputs.tag }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      # 1) Auth with SA JSON key
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      # 2) Enable APIs (non-fatal if not permitted)
+      - name: Enable required APIs (idempotent)
+        shell: bash
+        run: |
+          set -e
+          # Try enabling APIs; continue if permission denied (APIs might already be enabled)
+          gcloud services enable artifactregistry.googleapis.com run.googleapis.com \
+            --project "${PROJECT_ID}" \
+            && echo "APIs ensured." \
+            || echo "Could not enable APIs (insufficient perms or already enabled). Continuing..."
+
+      - name: Verify Artifact Registry repository exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gcloud artifacts repositories describe "${REPOSITORY}" \
+              --location="${REGION}" \
+              --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            echo "Repository exists."
+          else
+            echo "::error::Artifact Registry repo not found. Create it manually."
+            exit 1
+          fi
+
+
+      - name: Configure Docker to use Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Set build metadata (immutable tag)
+        id: meta
+        run: |
+          TS=$(date +%Y%m%d-%H%M%S)
+          SHORT_SHA=${GITHUB_SHA::7}
+          image_uri="${IMAGE_REPO}:${TS}-${SHORT_SHA}"
+
+          echo "image_uri=$image_uri" >> $GITHUB_OUTPUT
+          echo "tag=${TS}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+          echo "Built image: $image_uri"
+
+      # 4) Build → Push (immutable tag) + also push :latest
+      - name: Build Docker image
+        run: docker build -t "${{ steps.meta.outputs.image_uri }}" ./02-deploying-container-apps-on-gcp-cloud-run
+      
+      - name: Push image (immutable tag)
+        run: docker push "${{ steps.meta.outputs.image_uri }}"
+
+      - name: Tag and push :latest
+        run: |
+          docker tag "${{ steps.meta.outputs.image_uri }}" "${{ env.IMAGE_REPO }}:latest"
+          docker push "${{ env.IMAGE_REPO }}:latest"
+
+      - name: Summary
+        run: |
+          echo "Pushed immutable: ${{ steps.meta.outputs.image_uri }}"
+          echo "Also pushed:      ${{ env.IMAGE_REPO }}:latest"
+      
+  deploy:
+    name: Pull Image & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: build_and_push
+
+    steps:
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker to use Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Debug received image URI
+        run: echo "image_uri=${{ env.IMAGE_REPO }}:${{ needs.build_and_push.outputs.tag }}"
+
+      - name: Pull image from Artifact Registry (validation)
+        run: docker pull "${{ env.IMAGE_REPO }}:${{ needs.build_and_push.outputs.tag }}"
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          image: ${{ env.IMAGE_REPO }}:${{ needs.build_and_push.outputs.tag }}
+          region: ${{ env.REGION }}
+
+      - name: Show URL
+        run: echo "Service URL = ${{ steps.deploy.outputs.url }}"
