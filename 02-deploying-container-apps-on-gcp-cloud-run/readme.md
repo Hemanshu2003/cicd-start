@@ -25,6 +25,8 @@ This guide provides a **complete step-by-step setup** for deploying a Node.js ap
 
 It also includes **real-world errors + fixes** encountered during setup.
 
+![workflow daigram](https://github.com/Hemanshu2003/cicd-start/blob/main/02-deploying-container-apps-on-gcp-cloud-run/assets/deploying-container-app-on-cloud-run-dark.drawio.png)
+
 ---
 
 ### What is CI/CD?
@@ -54,6 +56,8 @@ In this guide, we'll create a GitHub Actions workflow to:
 ### 🔐 Keyless OIDC Authentication for GCP
 
 This project uses GitHub Actions OIDC + GCP Workload Identity Federation to enable secure, keyless authentication. Instead of storing service account keys, GitHub issues short‑lived OIDC tokens that GCP validates and exchanges for temporary credentials — improving security, eliminating secret management, and simplifying CI/CD workflows.
+
+![workflow daigram](https://github.com/Hemanshu2003/cicd-start/blob/main/02-deploying-container-apps-on-gcp-cloud-run/assets/working-OIDC-gcp.png)
 
 ---
 
