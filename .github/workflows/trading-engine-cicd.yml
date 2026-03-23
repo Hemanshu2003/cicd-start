@@ -10,7 +10,6 @@ on:
   push:
     branches:
       - main
-      - develop
     paths:
       - "cicd-trading-engine-kubes-deployment/**"          # ← change to your actual app folder name
       - ".github/workflows/trading-engine-cicd.yml"
