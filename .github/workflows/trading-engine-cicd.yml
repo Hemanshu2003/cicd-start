@@ -7,6 +7,11 @@ name: Trading Engine — CI/CD Pipeline
 # ─────────────────────────────────────────────
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+
+  
   push:
     branches:
       - main
