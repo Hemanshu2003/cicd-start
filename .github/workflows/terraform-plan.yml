@@ -9,7 +9,7 @@ on:
 env:
   TF_CLOUD_ORGANIZATION: "Hemanshu-HCPT"
   TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
-  TF_WORKSPACE: "01-learn-terraform-github-actions"
+  TF_WORKSPACE: "learn-terraform-github-actions"
   CONFIG_DIRECTORY: "./01-learn-terraform-github-actions"
   # WORKING_DIRECTORY: learn-terraform-github-actions
 
