@@ -31,8 +31,6 @@ The repository is divided into specific sub-projects, each demonstrating a uniqu
 
 **CodeQL** is GitHub’s semantic code analysis engine that treats **code as data** so you can query your codebase and automatically discover vulnerabilities before they reach production.<!-- [1](https://docs.github.com/en/code-security/concepts/code-scanning/codeql/about-code-scanning-with-codeql)[2](https://codeql.github.com/docs/codeql-overview/about-codeql/) -->
 
----
-
 ### 🔍 What is CodeQL?
 
 CodeQL builds a database representing your code (AST, control/data flow, etc.) and runs security queries against it. Findings appear as **code scanning alerts** right inside GitHub.<!-- [1](https://docs.github.com/en/code-security/concepts/code-scanning/codeql/about-code-scanning-with-codeql) -->
@@ -40,7 +38,6 @@ CodeQL builds a database representing your code (AST, control/data flow, etc.) a
 - Works with both **compiled and interpreted** languages.<!-- [1](https://docs.github.com/en/code-security/concepts/code-scanning/codeql/about-code-scanning-with-codeql) -->
 - Supports variant analysis—find **all** instances of a vulnerability pattern across a codebase.<!-- [2](https://codeql.github.com/docs/codeql-overview/about-codeql/) -->
 
----
 
 ### 💡 Why use CodeQL?
 
@@ -49,7 +46,6 @@ CodeQL builds a database representing your code (AST, control/data flow, etc.) a
 - **Faster PR scans** via incremental analysis for popular languages.<!-- [4](https://github.blog/changelog/2026-03-24-faster-incremental-analysis-with-codeql-in-pull-requests/) -->
 - **Free for public repos** (part of GitHub’s security for open source).<!-- [5](https://github.com/pricing)[6](https://codeql.github.com/) -->
 
----
 
 ### 🗣️ Supported languages
 
@@ -57,7 +53,6 @@ C/C++, C#, Go, **Java/Kotlin**, **JavaScript/TypeScript**, **Python**, **Ruby**,
 
 > Tip: For the Java/Kotlin and JS/TS families, use `java-kotlin` and `javascript-typescript` in your workflow.<!-- [1](https://docs.github.com/en/code-security/concepts/code-scanning/codeql/about-code-scanning-with-codeql) -->
 
----
 
 ### 🚀 Quick Start (Two Options)
 
@@ -88,7 +83,7 @@ Create `.github/workflows/codeql-analysis.yml`
 If you want to use or explore these workflows locally or in your own GitHub environment:
  
 1. **Clone the repository:**
-   ```bash
+```bash
    git clone [https://github.com/Hemanshu2003/cicd-start.git](https://github.com/Hemanshu2003/cicd-start.git)
    cd cicd-start
 ```
