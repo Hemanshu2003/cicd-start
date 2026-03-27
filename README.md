@@ -63,7 +63,7 @@ C/C++, C#, Go, **Java/Kotlin**, **JavaScript/TypeScript**, **Python**, **Ruby**,
 ### Option B — Advanced Setup (custom workflow)
 Create `.github/workflows/codeql-analysis.yml`
 
-> Reference: [link](https://dev.to/nivicius/how-to-enable-codeql-analysis-in-your-github-repository-5ad3)
+> Reference: [how-to-enable-codeql-analysis](https://dev.to/nivicius/how-to-enable-codeql-analysis-in-your-github-repository-5ad3)
 
 ---
  
@@ -84,7 +84,7 @@ If you want to use or explore these workflows locally or in your own GitHub envi
  
 1. **Clone the repository:**
 ```bash
-   git clone [https://github.com/Hemanshu2003/cicd-start.git](https://github.com/Hemanshu2003/cicd-start.git)
+   git clone https://github.com/Hemanshu2003/cicd-start.git
    cd cicd-start
 ```
  
