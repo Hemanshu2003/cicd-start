@@ -39,7 +39,7 @@ app.get('/', (req, res) => {
     <body>
       <div class="container">
         <h1>Hello from Node.js on Cloud Run!</h1>
-        <h3>- Hemanshu Waghmare</h3>
+        <h3>- Hemanshu Waghmare and Team</h3>
         <p>Current Background Color: <strong>${hexColor}</strong></p>
       </div>
     </body>
