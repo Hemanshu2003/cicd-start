@@ -10,15 +10,15 @@ It contains multiple projects focusing on Infrastructure as Code (IaC), containe
  
 The repository is divided into specific sub-projects, each demonstrating a unique CI/CD use case:
  
-### 🏗️ `[01-learn-terraform-github-actions](01-learn-terraform-github-actions/)`
+### 🏗️ [01-learn-terraform-github-actions](01-learn-terraform-github-actions/)
 * **Focus:** Infrastructure as Code (IaC) Automation.
 * **Overview:** Demonstrates how to automate Terraform workflows (`terraform init`, `plan`, and `apply`) via GitHub Actions and AWS free tier account. It ensures infrastructure changes are peer-reviewed and deployed predictably.
  
-### ☁️ `[02-deploying-container-apps-on-gcp-cloud-run](02-deploying-container-apps-on-gcp-cloud-run/)`
+### ☁️ [02-deploying-container-apps-on-gcp-cloud-run](02-deploying-container-apps-on-gcp-cloud-run/)
 * **Focus:** Serverless Deployments & Containerization.
 * **Overview:** A complete CI/CD pipeline that builds a Docker container for NodeJS backend Application, pushes the image to Google Cloud (Artifact Registry/GCR), and automatically deploys the application to **GCP Cloud Run** and provide Public URL.
  
-### ☸️ `[03-cicd-trading-engine-kubes-deployment](03-cicd-trading-engine-kubes-deployment/)`
+### ☸️ [03-cicd-trading-engine-kubes-deployment](03-cicd-trading-engine-kubes-deployment/)
 
 * **Focus:** Kubernetes (K8s) Microservices.
 * **Overview:** Covers the automation required to deploy a mock trading engine to a Kubernetes cluster. The workflow handles building the image, updating manifests, and executing rolling updates to the cluster._(Incomplete: Due to complexity of the project and time constraints image build and creating complete infrastructure using terraform and deploying it to AWS is DONE...testing and deploying build image to EKS is remaining.)_
@@ -68,7 +68,7 @@ C/C++, C#, Go, **Java/Kotlin**, **JavaScript/TypeScript**, **Python**, **Ruby**,
 ### Option B — Advanced Setup (custom workflow)
 Create `.github/workflows/codeql-analysis.yml`
 
-> Reference: ![link](https://dev.to/nivicius/how-to-enable-codeql-analysis-in-your-github-repository-5ad3)
+> Reference: [link](https://dev.to/nivicius/how-to-enable-codeql-analysis-in-your-github-repository-5ad3)
 
 ---
  
@@ -91,7 +91,7 @@ If you want to use or explore these workflows locally or in your own GitHub envi
    ```bash
    git clone [https://github.com/Hemanshu2003/cicd-start.git](https://github.com/Hemanshu2003/cicd-start.git)
    cd cicd-start
-````
+```
  
 2.  **Explore the Workflows:**
     Navigate to the `.github/workflows/` directory to see the exact GitHub Actions YAML files powering the deployments and CodeQL analysis.
@@ -101,10 +101,9 @@ If you want to use or explore these workflows locally or in your own GitHub envi
  
 -----
 
-### License
-
-© [2025] Hemanshu Waghmare.  
-All rights reserved. please contact:
+### 🤝 Contributing
+ 
+Issues and PRs are welcome. please contact:
 - Hemanshu Waghmare – [hemanshu.waghmare@gmail.com](hemanshu.waghmare@gmail.com)
 
 ---
