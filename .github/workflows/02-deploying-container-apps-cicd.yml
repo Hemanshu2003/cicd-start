@@ -10,14 +10,14 @@ on:
       - main
     paths:
       - "02-deploying-container-apps-on-gcp-cloud-run/**"
-      - ".github/workflows/deploying-container-apps-cicd.yml"
+      - ".github/workflows/02-deploying-container-apps-cicd.yml"
   
   pull_request:
     branches:
       - main
     paths:
       - "02-deploying-container-apps-on-gcp-cloud-run/**"
-      - ".github/workflows/deploying-container-apps-cicd.yml"
+      - ".github/workflows/02-deploying-container-apps-cicd.yml"
 
 
 # Make sure only the newest push per branch deploys

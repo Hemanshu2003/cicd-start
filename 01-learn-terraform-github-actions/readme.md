@@ -1,6 +1,6 @@
 # 🚀 Automating Terraform with GitHub Actions
 
-This repository demonstrates how to automate Terraform workflows using **GitHub Actions** integrated with **HCP Terraform (Terraform Cloud)**. The configuration provisions a publicly accessible EC2 web server on AWS using Terraform, and the CI/CD pipeline runs inside GitHub Actions.
+This dir demonstrates how to automate Terraform workflows using **GitHub Actions** integrated with **HCP Terraform (Terraform Cloud)**. The configuration provisions a publicly accessible EC2 web server on AWS using Terraform, and the CI/CD pipeline runs inside GitHub Actions.
 
 ## 📘 Overview
 
