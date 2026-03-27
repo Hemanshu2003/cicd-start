@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'python' ]  # Modify these languages as needed
+        language: [ 'python', 'javascript' ]  # Modify these languages as needed
         # Available options: 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby'
 
     steps:

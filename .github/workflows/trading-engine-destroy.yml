@@ -18,8 +18,8 @@ on:
         default: "Sandbox session ended"
 
 env:
-  APP_FOLDER: cicd-trading-engine-kubes-deployment
-  TF_FOLDER:  cicd-trading-engine-kubes-deployment/terraform
+  APP_FOLDER: 03-cicd-trading-engine-kubes-deployment
+  TF_FOLDER:  03-cicd-trading-engine-kubes-deployment/terraform
   AWS_REGION: ${{ secrets.AWS_REGION }}
 
 jobs:

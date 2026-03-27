@@ -16,14 +16,14 @@ on:
     branches:
       - main
     paths:
-      - "cicd-trading-engine-kubes-deployment/**"          # ← change to your actual app folder name
+      - "03-cicd-trading-engine-kubes-deployment/**"          # ← change to your actual app folder name
       - ".github/workflows/trading-engine-cicd.yml"
 
   pull_request:
     branches:
       - main
     paths:
-      - "cicd-trading-engine-kubes-deployment/**"
+      - "03-cicd-trading-engine-kubes-deployment/**"
       - ".github/workflows/trading-engine-cicd.yml"
 
 # Cancel any in-progress run for the same branch
@@ -35,8 +35,8 @@ concurrency:
 # GLOBAL ENV — set these in GitHub Secrets
 # ─────────────────────────────────────────────
 env:
-  APP_FOLDER: cicd-trading-engine-kubes-deployment            # ← your app folder name
-  TF_FOLDER: cicd-trading-engine-kubes-deployment/terraform   # ← terraform subfolder inside app folder
+  APP_FOLDER: 03-cicd-trading-engine-kubes-deployment            # ← your app folder name
+  TF_FOLDER: 03-cicd-trading-engine-kubes-deployment/terraform   # ← terraform subfolder inside app folder
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: trading-engine
   IMAGE_TAG: ${{ github.sha }}
